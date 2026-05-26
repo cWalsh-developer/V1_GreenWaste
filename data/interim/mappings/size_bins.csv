@@ -1,0 +1,5 @@
+size_bin,min_cm,max_cm
+small,0,40
+medium,40,90
+large,90,160
+extra_large,160,
