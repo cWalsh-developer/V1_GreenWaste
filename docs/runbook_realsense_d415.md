@@ -52,3 +52,20 @@ If frames are too dark/bright, disable auto exposure:
 $env:PYTHONPATH = "src"
 python -m greenwaste.realsense_capture --manual-exposure --exposure 8000 --gain 16
 ```
+
+## ROI size estimation + manifest
+
+After a capture, create a manifest entry:
+
+```
+$env:PYTHONPATH = "src"
+python -m greenwaste.capture_manifest \
+	--capture-dir data/raw/realsense/capture_YYYYMMDD_HHMMSS \
+	--category chair \
+	--materials "wood, metal"
+```
+
+This writes:
+
+- data/interim/realsense_manifest.csv
+- data/interim/realsense_roi/<capture_id>\_roi.json
