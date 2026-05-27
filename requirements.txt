@@ -2,3 +2,6 @@ pandas>=2.0.0
 openpyxl>=3.1.0
 python-docx>=1.1.0
 pytest>=7.0.0
+numpy>=1.24.0
+opencv-python>=4.9.0
+pyrealsense2>=2.54.0

@@ -1,0 +1,35 @@
+{
+  "capture_id": "capture_20260527_020922",
+  "timestamp_utc": "2026-05-27T02:09:29.711667+00:00",
+  "camera_model": "Intel RealSense D435",
+  "serial": "405622074914",
+  "resolution_rgb": {
+    "width": 640,
+    "height": 480
+  },
+  "resolution_depth": {
+    "width": 640,
+    "height": 480
+  },
+  "depth_scale": 0.0010000000474974513,
+  "intrinsics": {
+    "width": 640,
+    "height": 480,
+    "ppx": 323.42266845703125,
+    "ppy": 245.4645538330078,
+    "fx": 605.1956176757812,
+    "fy": 604.7898559570312,
+    "model": "distortion.inverse_brown_conrady",
+    "coeffs": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "notes": null,
+  "color_space": "rgb",
+  "software_white_balance": false,
+  "swap_rb": true
+}

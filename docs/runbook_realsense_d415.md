@@ -1,4 +1,4 @@
-# RealSense D415 Desktop Runbook (Phase 1)
+# RealSense D435 Desktop Runbook (Phase 1)
 
 ## Goal
 
@@ -34,3 +34,21 @@ Store one folder per capture:
 - Keep a fixed camera distance per session when possible.
 - Capture a neutral background to reduce segmentation noise.
 - Use a simple bounding box or manual ROI for size estimation in early tests.
+
+## Preview capture
+
+Run with live preview (press 's' to save, 'q' to quit):
+
+```
+$env:PYTHONPATH = "src"
+python -m greenwaste.realsense_capture --preview
+```
+
+## Manual exposure (optional)
+
+If frames are too dark/bright, disable auto exposure:
+
+```
+$env:PYTHONPATH = "src"
+python -m greenwaste.realsense_capture --manual-exposure --exposure 8000 --gain 16
+```
