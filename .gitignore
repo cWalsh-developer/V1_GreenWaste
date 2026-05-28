@@ -1,2 +1,27 @@
-myenv
-labelled
+myenv/
+.venv/
+venv/
+
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+
+# Local data and generated datasets
+data/raw/realsense/labelled/
+data/interim/yolo_detections/
+data/processed/
+
+# Manual annotation exports from MakeSense/YOLO labelling tools
+labels_yolo*/
+labels_*/
+
+# Model weights and training outputs
+*.pt
+*.pth
+models/*.pt
+models/*.pth
+runs/
+
+# Large media/model artifacts
+*.onnx
+*.engine
