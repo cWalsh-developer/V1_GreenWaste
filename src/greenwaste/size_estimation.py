@@ -44,6 +44,8 @@ def load_capture_images(capture_dir: Path) -> tuple[np.ndarray, np.ndarray]:
     depth = cv2.imread(str(depth_path), cv2.IMREAD_UNCHANGED)
     if rgb is None or depth is None:
         raise RuntimeError("Failed to load capture images")
+    if depth.ndim == 3 and depth.shape[2] == 1:
+        depth = depth[:, :, 0]
     return rgb, depth
 
 
@@ -78,9 +80,20 @@ def estimate_size_from_roi(
     if valid.size == 0:
         raise ValueError("No valid depth values in ROI")
 
-    depth_median = float(np.median(valid) * depth_scale)
-    depth_min = float(np.percentile(valid, 30) * depth_scale)
-    depth_max = float(np.percentile(valid, 70) * depth_scale)
+    valid_m = valid * depth_scale
+    depth_median = float(np.median(valid_m))
+    median_abs_deviation = float(np.median(np.abs(valid_m - depth_median)))
+    if median_abs_deviation > 0:
+        inlier_values = valid_m[
+            np.abs(valid_m - depth_median) <= max(3.0 * median_abs_deviation, 0.05)
+        ]
+    else:
+        inlier_values = valid_m[valid_m == depth_median]
+    if inlier_values.size == 0:
+        inlier_values = valid_m
+
+    depth_min = float(np.percentile(inlier_values, 30))
+    depth_max = float(np.percentile(inlier_values, 70))
     depth_thickness = max(depth_max - depth_min, 0.0)
 
     inlier_mask = (

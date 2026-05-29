@@ -50,10 +50,10 @@ def build_metadata(
     depth_shape: tuple[int, int],
     depth_scale: float,
     intrinsics: dict[str, Any],
-    notes: str | None,
-    color_space: str,
-    software_white_balance: bool,
-    swap_rb: bool,
+    notes: str | None = None,
+    color_space: str = "rgb",
+    software_white_balance: bool = False,
+    swap_rb: bool = False,
 ) -> dict[str, Any]:
     timestamp = datetime.now(timezone.utc).isoformat()
     return {

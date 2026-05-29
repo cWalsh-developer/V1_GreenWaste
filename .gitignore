@@ -9,6 +9,9 @@ __pycache__/
 # Local data and generated datasets
 data/raw/realsense/labelled/
 data/interim/yolo_detections/
+data/interim/yolo_size_estimates/
+data/interim/reference_matches/
+data/interim/lca_estimates/
 data/processed/
 
 # Manual annotation exports from MakeSense/YOLO labelling tools

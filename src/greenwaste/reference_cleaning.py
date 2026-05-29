@@ -212,14 +212,16 @@ def clean_reference_df(
 
 def build_missing_summary(cleaned: pd.DataFrame) -> pd.DataFrame:
     total = len(cleaned)
+    weight_imputed = cleaned.get("weight_imputed", pd.Series(False, index=cleaned.index))
+    weight_kg_filled = cleaned.get("weight_kg_filled", pd.Series(pd.NA, index=cleaned.index))
     summary = {
         "missing_materials": cleaned["missing_materials"].sum(),
         "missing_weight": cleaned["missing_weight"].sum(),
         "missing_dimensions": cleaned["missing_dimensions"].sum(),
         "unknown_material_family": (cleaned["material_family"] == "unknown").sum(),
         "unknown_item_label": (cleaned["item_label"] == "unknown").sum(),
-        "imputed_weight": cleaned["weight_imputed"].sum(),
-        "missing_weight_after_impute": cleaned["weight_kg_filled"].isna().sum(),
+        "imputed_weight": weight_imputed.sum(),
+        "missing_weight_after_impute": weight_kg_filled.isna().sum(),
     }
     rows = []
     for field, count in summary.items():

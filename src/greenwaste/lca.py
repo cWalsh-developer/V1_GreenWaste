@@ -10,9 +10,13 @@ def scenario_co2e_range(
     low_weight, high_weight = weight_range_kg
     low_intensity, high_intensity = intensity_range_kgco2e_per_kg
 
-    low = low_weight * low_intensity
-    high = high_weight * high_intensity
-    return (low, high)
+    values = (
+        low_weight * low_intensity,
+        low_weight * high_intensity,
+        high_weight * low_intensity,
+        high_weight * high_intensity,
+    )
+    return (min(values), max(values))
 
 
 def default_scenario_intensities() -> Dict[str, Tuple[float, float]]:
