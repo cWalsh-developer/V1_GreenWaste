@@ -28,6 +28,20 @@ Most factors are derived from the UK Government GHG Conversion Factors for
 Company Reporting 2025. The original flat-file factors are published in
 kg CO2e per tonne, so the project table converts them to kg CO2e per kg.
 
+The default class-level material composition table is:
+
+`data/interim/mappings/material_composition_profiles.csv`
+
+This table provides low-impact and high-impact proxy material mixes for each
+broad item class. These are not measured compositions. They are scenario profiles
+used to carry material uncertainty through the calculation.
+
+The reference-matching stage may also select a more specific profile when a
+simple keyword rule supports it. For example, a broad `chair_seating` detection
+can use the `office_chair` profile if the closest reference products contain
+terms such as desk chair, office chair, gaming chair, computer chair, or swivel
+chair.
+
 ## Scenario Meanings
 
 - `reuse_avoided_production`: proxy for avoided production if the item is reused
@@ -42,9 +56,9 @@ kg CO2e per tonne, so the project table converts them to kg CO2e per kg.
 ## Limitations
 
 - Material composition is inferred from reference products, not measured.
-- Mixed-material furniture uses a documented project proxy blend.
+- Broad item classes use low/high proxy composition profiles.
 - Some material-specific factors are unavailable, so proxies are used for foam,
-  unknown material, and mixed-material items.
+  unknown material, and missing pathways.
 - The result should be reported as an indicative CO2e range or comparative score.
 - A full ISO-style LCA would require explicit goal/scope definition, life-cycle
   inventory, impact assessment method, interpretation, sensitivity analysis, and

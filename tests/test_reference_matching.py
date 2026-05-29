@@ -3,6 +3,7 @@ import pandas as pd
 from greenwaste.reference_matching import (
     dimension_similarity_score,
     filter_reference_by_item_class,
+    infer_composition_profile,
     match_reference_items,
     summarize_reference_matches,
 )
@@ -70,3 +71,29 @@ def test_summarize_reference_matches_returns_weight_range_and_material_mode():
     assert summary["size_bin"] == "medium"
     assert summary["weight_range_kg"][0] > 5.0
     assert summary["weight_range_kg"][1] < 20.0
+
+
+def test_infer_composition_profile_selects_office_chair_from_reference_matches():
+    matches = pd.DataFrame(
+        {
+            "item_label": ["desk_desk_chairs_desk_chairs_desk_chairs_for_home"],
+            "category": ["desk desk chairs desk chairs desk chairs for home"],
+        }
+    )
+
+    profile = infer_composition_profile("chair_seating", matches)
+
+    assert profile == "office_chair"
+
+
+def test_infer_composition_profile_keeps_generic_profile_without_subtype_match():
+    matches = pd.DataFrame(
+        {
+            "item_label": ["tables_chairs_benches_hallway_benches"],
+            "category": ["tables chairs benches hallway benches"],
+        }
+    )
+
+    profile = infer_composition_profile("chair_seating", matches)
+
+    assert profile == "chair_seating"

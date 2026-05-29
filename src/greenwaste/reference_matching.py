@@ -108,6 +108,24 @@ MATCH_COLUMNS = [
 ]
 
 
+COMPOSITION_PROFILE_RULES = {
+    "chair_seating": [
+        (
+            "office_chair",
+            [
+                r"\bdesk chair",
+                r"\boffice chair",
+                r"\bgaming chair",
+                r"\bcomputer chair",
+                r"\bswivel chair",
+                r"desk_chairs",
+                r"gaming_furniture_gaming_chairs",
+            ],
+        )
+    ]
+}
+
+
 def _search_text(reference_df: pd.DataFrame) -> pd.Series:
     return (
         reference_df["item_label"].fillna("").astype(str)
@@ -118,6 +136,19 @@ def _search_text(reference_df: pd.DataFrame) -> pd.Series:
 
 def _keyword_pattern(keywords: list[str]) -> str:
     return "|".join(rf"\b{re.escape(keyword)}s?\b" for keyword in keywords)
+
+
+def infer_composition_profile(item_class: str, matches: pd.DataFrame) -> str:
+    item_class = str(item_class or "unknown")
+    rules = COMPOSITION_PROFILE_RULES.get(item_class, [])
+    if matches.empty or not rules:
+        return item_class
+
+    search_text = _search_text(matches).str.cat(sep=" ")
+    for profile, patterns in rules:
+        if any(re.search(pattern, search_text) for pattern in patterns):
+            return profile
+    return item_class
 
 
 def filter_reference_by_item_class(
@@ -256,9 +287,11 @@ def build_match_payload(
     matches: pd.DataFrame,
 ) -> dict[str, Any]:
     summary = summarize_reference_matches(matches)
+    item_class = size_row.get("item_class")
     return {
         "capture_id": size_row.get("capture_id"),
-        "item_class": size_row.get("item_class"),
+        "item_class": item_class,
+        "composition_profile": infer_composition_profile(str(item_class), matches),
         "confidence": (
             None
             if pd.isna(size_row.get("confidence"))
@@ -307,6 +340,7 @@ def run_reference_matching(
         {
             "capture_id": payload["capture_id"],
             "item_class": payload["item_class"],
+            "composition_profile": payload["composition_profile"],
             "confidence": payload["confidence"],
             "width_cm": payload["size_cues"]["width_cm"],
             "height_cm": payload["size_cues"]["height_cm"],

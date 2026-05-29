@@ -61,3 +61,40 @@ def test_build_lca_payload_includes_factor_metadata():
     assert scenario["co2e_high_kg"] == 20.0
     assert scenario["source_year"] == 2025
     assert scenario["assumption_quality"] == "high"
+
+
+def test_build_lca_payload_uses_composition_profile_cases():
+    row = pd.Series(
+        {
+            "capture_id": "capture_001",
+            "item_class": "chair_seating",
+            "composition_profile": "office_chair",
+            "material_family": "mixed",
+            "weight_low_kg": 10.0,
+            "weight_high_kg": 20.0,
+        }
+    )
+    composition_factors = pd.DataFrame(
+        {
+            "item_class": ["chair_seating", "chair_seating"],
+            "profile_case": ["low_impact", "high_impact"],
+            "scenario": ["landfill", "landfill"],
+            "factor_low_kgco2e_per_kg": [0.2, 0.6],
+            "factor_high_kgco2e_per_kg": [0.3, 0.8],
+            "material_fractions": [{"wood": 1.0}, {"metal": 1.0}],
+            "source_name": ["source", "source"],
+            "source_year": [2025, 2025],
+            "source_url": ["url", "url"],
+        }
+    )
+
+    payload = build_lca_payload(
+        row,
+        composition_factor_rows=composition_factors,
+    )
+
+    scenario = payload["scenarios"][0]
+    assert payload["composition_profile"] == "office_chair"
+    assert scenario["co2e_low_kg"] == 2.0
+    assert scenario["co2e_high_kg"] == 16.0
+    assert len(scenario["composition_cases"]) == 2
