@@ -7,20 +7,52 @@ from typing import Any
 
 import pandas as pd
 
-from .lca import default_scenario_intensities, scenario_co2e_range
+from .lca import (
+    DEFAULT_LCA_FACTOR_PATH,
+    default_scenario_intensities,
+    load_lca_factor_table,
+    scenario_co2e_range,
+    select_lca_factors,
+)
 
 
 def build_lca_payload(
     match_row: pd.Series,
     scenario_intensities: dict[str, tuple[float, float]] | None = None,
+    factor_rows: pd.DataFrame | None = None,
 ) -> dict[str, Any]:
-    scenario_intensities = scenario_intensities or default_scenario_intensities()
     weight_low = match_row.get("weight_low_kg")
     weight_high = match_row.get("weight_high_kg")
 
     if pd.isna(weight_low) or pd.isna(weight_high):
         scenarios = []
+    elif factor_rows is not None:
+        weight_range = (float(weight_low), float(weight_high))
+        scenarios = []
+        for _, factor in factor_rows.iterrows():
+            intensity_range = (
+                float(factor["factor_low_kgco2e_per_kg"]),
+                float(factor["factor_high_kgco2e_per_kg"]),
+            )
+            co2e_low, co2e_high = scenario_co2e_range(weight_range, intensity_range)
+            scenarios.append(
+                {
+                    "scenario": factor["scenario"],
+                    "co2e_low_kg": co2e_low,
+                    "co2e_high_kg": co2e_high,
+                    "intensity_low_kgco2e_per_kg": intensity_range[0],
+                    "intensity_high_kgco2e_per_kg": intensity_range[1],
+                    "boundary": factor.get("boundary"),
+                    "source_name": factor.get("source_name"),
+                    "source_year": factor.get("source_year"),
+                    "source_url": factor.get("source_url"),
+                    "source_detail": factor.get("source_detail"),
+                    "assumption_quality": factor.get("assumption_quality"),
+                    "notes": factor.get("notes"),
+                }
+            )
     else:
+        scenario_intensities = scenario_intensities or default_scenario_intensities()
         weight_range = (float(weight_low), float(weight_high))
         scenarios = [
             {
@@ -49,10 +81,19 @@ def build_lca_payload(
 def run_lca_estimation(
     match_summary_path: Path,
     output_dir: Path,
+    factor_path: Path = DEFAULT_LCA_FACTOR_PATH,
 ) -> list[dict[str, Any]]:
     match_summary = pd.read_csv(match_summary_path)
+    factors = load_lca_factor_table(factor_path)
     payloads = [
-        build_lca_payload(match_row) for _, match_row in match_summary.iterrows()
+        build_lca_payload(
+            match_row,
+            factor_rows=select_lca_factors(
+                factors,
+                str(match_row.get("material_family", "unknown")),
+            ),
+        )
+        for _, match_row in match_summary.iterrows()
     ]
 
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -88,6 +129,12 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=Path("data/interim/lca_estimates"),
     )
+    parser.add_argument(
+        "--factor-table",
+        type=Path,
+        default=DEFAULT_LCA_FACTOR_PATH,
+        help="CSV table containing scenario factors, sources, and assumptions.",
+    )
     return parser
 
 
@@ -98,6 +145,7 @@ def main() -> None:
     payloads = run_lca_estimation(
         match_summary_path=args.match_summary,
         output_dir=args.output_dir,
+        factor_path=args.factor_table,
     )
     print(json.dumps(payloads, indent=2))
 
