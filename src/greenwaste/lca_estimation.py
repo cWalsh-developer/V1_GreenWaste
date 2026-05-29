@@ -20,6 +20,45 @@ from .lca import (
 )
 
 
+SCENARIO_LABELS = {
+    "reuse_avoided_production": "Reuse",
+    "closed_loop_recycling": "Recycle",
+    "incineration_energy_recovery": "Incineration",
+    "landfill": "Landfill",
+}
+
+
+def build_scenario_recommendation(scenarios: list[dict[str, Any]]) -> dict[str, Any]:
+    if not scenarios:
+        return {
+            "recommended_scenario": None,
+            "recommended_route": None,
+            "rationale": "No scenario result was available because the weight range could not be estimated.",
+        }
+
+    ranked = sorted(
+        scenarios,
+        key=lambda scenario: (
+            float(scenario["co2e_high_kg"]),
+            float(scenario["co2e_low_kg"]),
+        ),
+    )
+    best = ranked[0]
+    best_name = str(best["scenario"])
+    best_label = SCENARIO_LABELS.get(best_name, best_name.replace("_", " ").title())
+
+    return {
+        "recommended_scenario": best_name,
+        "recommended_route": best_label,
+        "co2e_range_kg": [best["co2e_low_kg"], best["co2e_high_kg"]],
+        "rationale": (
+            f"{best_label} has the lowest upper-bound CO2e estimate among the "
+            "modelled routes. Treat this as a decision-support recommendation, "
+            "not a guarantee, because weight and material composition are estimated."
+        ),
+    }
+
+
 def build_lca_payload(
     match_row: pd.Series,
     scenario_intensities: dict[str, tuple[float, float]] | None = None,
@@ -148,6 +187,7 @@ def build_lca_payload(
             None if pd.isna(weight_high) else float(weight_high),
         ],
         "scenarios": scenarios,
+        "recommendation": build_scenario_recommendation(scenarios),
     }
 
 
@@ -212,6 +252,12 @@ def run_lca_estimation(
                     "item_class": payload["item_class"],
                     "composition_profile": payload["composition_profile"],
                     "material_family": payload["material_family"],
+                    "recommended_scenario": payload["recommendation"][
+                        "recommended_scenario"
+                    ],
+                    "recommended_route": payload["recommendation"][
+                        "recommended_route"
+                    ],
                     "weight_low_kg": payload["weight_range_kg"][0],
                     "weight_high_kg": payload["weight_range_kg"][1],
                     **scenario,

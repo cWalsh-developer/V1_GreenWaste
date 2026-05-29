@@ -53,6 +53,17 @@ chair.
   incineration with energy recovery where available.
 - `landfill`: end-of-life waste-disposal factor for landfill where available.
 
+## Recommendation Logic
+
+The LCA output includes all scenario results plus a recommended route. The
+recommendation is selected by the lowest upper-bound CO2e estimate among the
+modelled routes. This deliberately favours the option with the best conservative
+CO2e outcome, but it does not account for operational constraints such as local
+facility availability, contamination, safety, transport distance, or item
+condition. Reuse is treated as a diversion route rather than literal disposal.
+The user-facing recommended route is restricted to one of four categories:
+Reuse, Landfill, Incineration, or Recycle.
+
 ## Limitations
 
 - Material composition is inferred from reference products, not measured.

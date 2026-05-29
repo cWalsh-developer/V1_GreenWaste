@@ -1,6 +1,30 @@
 import pandas as pd
 
-from greenwaste.lca_estimation import build_lca_payload
+from greenwaste.lca_estimation import (
+    build_lca_payload,
+    build_scenario_recommendation,
+)
+
+
+def test_build_scenario_recommendation_selects_lowest_upper_bound():
+    recommendation = build_scenario_recommendation(
+        [
+            {"scenario": "landfill", "co2e_low_kg": 5.0, "co2e_high_kg": 12.0},
+            {
+                "scenario": "reuse_avoided_production",
+                "co2e_low_kg": -20.0,
+                "co2e_high_kg": -2.0,
+            },
+            {
+                "scenario": "closed_loop_recycling",
+                "co2e_low_kg": 0.1,
+                "co2e_high_kg": 1.0,
+            },
+        ]
+    )
+
+    assert recommendation["recommended_scenario"] == "reuse_avoided_production"
+    assert recommendation["recommended_route"] == "Reuse"
 
 
 def test_build_lca_payload_uses_weight_range_for_each_scenario():
@@ -25,6 +49,7 @@ def test_build_lca_payload_uses_weight_range_for_each_scenario():
     assert payload["scenarios"][0]["co2e_high_kg"] == -0.5
     assert payload["scenarios"][1]["co2e_low_kg"] == 3.0
     assert payload["scenarios"][1]["co2e_high_kg"] == 14.0
+    assert payload["recommendation"]["recommended_scenario"] == "reuse"
 
 
 def test_build_lca_payload_includes_factor_metadata():
