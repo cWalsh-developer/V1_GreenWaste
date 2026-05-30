@@ -6,7 +6,7 @@ from greenwaste.lca_estimation import (
 )
 
 
-def test_build_scenario_recommendation_selects_lowest_upper_bound():
+def test_build_scenario_recommendation_defaults_to_non_reuse_when_unknown():
     recommendation = build_scenario_recommendation(
         [
             {"scenario": "landfill", "co2e_low_kg": 5.0, "co2e_high_kg": 12.0},
@@ -23,8 +23,34 @@ def test_build_scenario_recommendation_selects_lowest_upper_bound():
         ]
     )
 
-    assert recommendation["recommended_scenario"] == "reuse_avoided_production"
-    assert recommendation["recommended_route"] == "Reuse"
+    assert recommendation["condition_status"] == "unknown"
+    assert recommendation["recommended_scenario"] == "closed_loop_recycling"
+    assert recommendation["recommended_route"] == "Recycle"
+    assert recommendation["preferred_if_reusable"]["recommended_route"] == "Reuse"
+
+
+def test_build_scenario_recommendation_excludes_reuse_when_not_reusable():
+    recommendation = build_scenario_recommendation(
+        [
+            {
+                "scenario": "reuse_avoided_production",
+                "co2e_low_kg": -20.0,
+                "co2e_high_kg": -2.0,
+            },
+            {
+                "scenario": "closed_loop_recycling",
+                "co2e_low_kg": 0.1,
+                "co2e_high_kg": 1.0,
+            },
+            {"scenario": "landfill", "co2e_low_kg": 5.0, "co2e_high_kg": 12.0},
+        ],
+        condition_status="not_reusable",
+    )
+
+    assert recommendation["condition_status"] == "not_reusable"
+    assert recommendation["recommended_scenario"] == "closed_loop_recycling"
+    assert recommendation["recommended_route"] == "Recycle"
+    assert recommendation["preferred_if_reusable"]["recommended_route"] == "Reuse"
 
 
 def test_build_lca_payload_uses_weight_range_for_each_scenario():
@@ -45,6 +71,7 @@ def test_build_lca_payload_uses_weight_range_for_each_scenario():
     payload = build_lca_payload(
         row,
         scenario_intensities={"reuse": (-0.4, -0.1), "landfill": (0.6, 1.4)},
+        condition_status="reusable",
     )
 
     assert payload["weight_range_kg"] == [5.0, 10.0]
@@ -54,6 +81,7 @@ def test_build_lca_payload_uses_weight_range_for_each_scenario():
     assert payload["scenarios"][1]["co2e_low_kg"] == 3.0
     assert payload["scenarios"][1]["co2e_high_kg"] == 14.0
     assert payload["recommendation"]["recommended_scenario"] == "reuse"
+    assert payload["recommendation"]["condition_status"] == "reusable"
     assert payload["weight_source_summary"]["reference_count"] == 2
     assert payload["weight_source_summary"]["imputed_count"] == 1
 

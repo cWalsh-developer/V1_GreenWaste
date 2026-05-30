@@ -28,34 +28,123 @@ SCENARIO_LABELS = {
 }
 
 
-def build_scenario_recommendation(scenarios: list[dict[str, Any]]) -> dict[str, Any]:
-    if not scenarios:
-        return {
-            "recommended_scenario": None,
-            "recommended_route": None,
-            "rationale": "No scenario result was available because the weight range could not be estimated.",
-        }
+REUSE_SCENARIOS = {"reuse_avoided_production"}
+CONDITION_STATUSES = {"reusable", "not_reusable", "unknown"}
 
-    ranked = sorted(
+
+def _rank_scenarios(scenarios: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return sorted(
         scenarios,
         key=lambda scenario: (
             float(scenario["co2e_high_kg"]),
             float(scenario["co2e_low_kg"]),
         ),
     )
-    best = ranked[0]
-    best_name = str(best["scenario"])
-    best_label = SCENARIO_LABELS.get(best_name, best_name.replace("_", " ").title())
+
+
+def _recommendation_payload(
+    scenario: dict[str, Any] | None,
+    rationale: str,
+) -> dict[str, Any]:
+    if scenario is None:
+        return {
+            "recommended_scenario": None,
+            "recommended_route": None,
+            "co2e_range_kg": [None, None],
+            "rationale": rationale,
+        }
+
+    scenario_name = str(scenario["scenario"])
+    route = SCENARIO_LABELS.get(
+        scenario_name,
+        scenario_name.replace("_", " ").title(),
+    )
+    return {
+        "recommended_scenario": scenario_name,
+        "recommended_route": route,
+        "co2e_range_kg": [scenario["co2e_low_kg"], scenario["co2e_high_kg"]],
+        "rationale": rationale,
+    }
+
+
+def build_scenario_recommendation(
+    scenarios: list[dict[str, Any]],
+    condition_status: str = "unknown",
+) -> dict[str, Any]:
+    condition_status = str(condition_status or "unknown").strip().lower()
+    if condition_status not in CONDITION_STATUSES:
+        raise ValueError(
+            "condition_status must be one of: "
+            + ", ".join(sorted(CONDITION_STATUSES))
+        )
+
+    if not scenarios:
+        return {
+            "condition_status": condition_status,
+            "recommended_scenario": None,
+            "recommended_route": None,
+            "preferred_if_reusable": None,
+            "recommended_if_not_reusable": None,
+            "rationale": "No scenario result was available because the weight range could not be estimated.",
+        }
+
+    reuse_candidates = [
+        scenario for scenario in scenarios if scenario["scenario"] in REUSE_SCENARIOS
+    ]
+    disposal_candidates = [
+        scenario for scenario in scenarios if scenario["scenario"] not in REUSE_SCENARIOS
+    ]
+    best_reuse = _rank_scenarios(reuse_candidates)[0] if reuse_candidates else None
+    best_disposal = (
+        _rank_scenarios(disposal_candidates)[0] if disposal_candidates else None
+    )
+
+    preferred_if_reusable = _recommendation_payload(
+        best_reuse,
+        "Reuse is preferred when the item is manually assessed as reusable.",
+    )
+    recommended_if_not_reusable = _recommendation_payload(
+        best_disposal,
+        "If the item is not reusable, this is the lowest upper-bound CO2e route among the modelled disposal routes.",
+    )
+
+    if condition_status == "reusable" and best_reuse is not None:
+        selected = preferred_if_reusable
+        rationale = (
+            "The item condition was marked reusable, so reuse is recommended. "
+            "Reuse is modelled as an avoided-production route and should only "
+            "be selected when the collector judges the item suitable for reuse."
+        )
+    elif condition_status == "not_reusable" and best_disposal is not None:
+        selected = recommended_if_not_reusable
+        rationale = (
+            "The item condition was marked not reusable, so reuse is excluded. "
+            f"{selected['recommended_route']} has the lowest upper-bound CO2e "
+            "estimate among the remaining modelled disposal routes."
+        )
+    elif best_disposal is not None:
+        selected = recommended_if_not_reusable
+        rationale = (
+            "Item condition was not provided. Reuse should be selected only if "
+            "a collector manually assesses the item as reusable. Until then, "
+            f"{selected['recommended_route']} is reported as the non-reuse "
+            "disposal recommendation."
+        )
+    else:
+        selected = preferred_if_reusable
+        rationale = (
+            "Only a reuse scenario was available. Manual condition assessment "
+            "is required before selecting reuse."
+        )
 
     return {
-        "recommended_scenario": best_name,
-        "recommended_route": best_label,
-        "co2e_range_kg": [best["co2e_low_kg"], best["co2e_high_kg"]],
-        "rationale": (
-            f"{best_label} has the lowest upper-bound CO2e estimate among the "
-            "modelled routes. Treat this as a decision-support recommendation, "
-            "not a guarantee, because weight and material composition are estimated."
-        ),
+        "condition_status": condition_status,
+        "recommended_scenario": selected["recommended_scenario"],
+        "recommended_route": selected["recommended_route"],
+        "co2e_range_kg": selected["co2e_range_kg"],
+        "preferred_if_reusable": preferred_if_reusable,
+        "recommended_if_not_reusable": recommended_if_not_reusable,
+        "rationale": rationale,
     }
 
 
@@ -64,6 +153,7 @@ def build_lca_payload(
     scenario_intensities: dict[str, tuple[float, float]] | None = None,
     factor_rows: pd.DataFrame | None = None,
     composition_factor_rows: pd.DataFrame | None = None,
+    condition_status: str = "unknown",
 ) -> dict[str, Any]:
     weight_low = match_row.get("weight_low_kg")
     weight_high = match_row.get("weight_high_kg")
@@ -197,7 +287,10 @@ def build_lca_payload(
         ],
         "weight_source_summary": weight_source_summary,
         "scenarios": scenarios,
-        "recommendation": build_scenario_recommendation(scenarios),
+        "recommendation": build_scenario_recommendation(
+            scenarios,
+            condition_status=condition_status,
+        ),
     }
 
 
@@ -207,6 +300,7 @@ def run_lca_estimation(
     factor_path: Path = DEFAULT_LCA_FACTOR_PATH,
     material_profile_path: Path = DEFAULT_MATERIAL_PROFILE_PATH,
     use_material_profiles: bool = True,
+    condition_status: str = "unknown",
 ) -> list[dict[str, Any]]:
     match_summary = pd.read_csv(match_summary_path)
     factors = load_lca_factor_table(factor_path)
@@ -234,6 +328,7 @@ def run_lca_estimation(
                 build_lca_payload(
                     match_row,
                     composition_factor_rows=composition_factors,
+                    condition_status=condition_status,
                 )
             )
         else:
@@ -244,6 +339,7 @@ def run_lca_estimation(
                         factors,
                         str(match_row.get("material_family", "unknown")),
                     ),
+                    condition_status=condition_status,
                 )
             )
 
@@ -267,6 +363,9 @@ def run_lca_estimation(
                     ],
                     "recommended_route": payload["recommendation"][
                         "recommended_route"
+                    ],
+                    "condition_status": payload["recommendation"][
+                        "condition_status"
                     ],
                     "weight_low_kg": payload["weight_range_kg"][0],
                     "weight_high_kg": payload["weight_range_kg"][1],
@@ -314,6 +413,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Use direct material_family factors instead of class proxy profiles.",
     )
+    parser.add_argument(
+        "--condition",
+        choices=sorted(CONDITION_STATUSES),
+        default="unknown",
+        help="Manual condition assessment for recommendation logic.",
+    )
     return parser
 
 
@@ -327,6 +432,7 @@ def main() -> None:
         factor_path=args.factor_table,
         material_profile_path=args.material_profiles,
         use_material_profiles=not args.no_material_profiles,
+        condition_status=args.condition,
     )
     print(json.dumps(payloads, indent=2))
 

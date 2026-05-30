@@ -25,6 +25,7 @@ def run_v1_demo_pipeline(
     factor_path: Path = DEFAULT_LCA_FACTOR_PATH,
     material_profile_path: Path = DEFAULT_MATERIAL_PROFILE_PATH,
     use_material_profiles: bool = True,
+    condition_status: str = "unknown",
 ) -> dict[str, Any]:
     capture_id = capture_dir.name
     size_output_dir = output_root / "yolo_size_estimates"
@@ -60,6 +61,7 @@ def run_v1_demo_pipeline(
         factor_path=factor_path,
         material_profile_path=material_profile_path,
         use_material_profiles=use_material_profiles,
+        condition_status=condition_status,
     )
 
     summary = {
@@ -115,6 +117,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Use direct material_family factors instead of class proxy profiles.",
     )
+    parser.add_argument(
+        "--condition",
+        choices=["not_reusable", "reusable", "unknown"],
+        default="unknown",
+        help="Manual visible-condition assessment for route recommendation.",
+    )
     return parser
 
 
@@ -136,6 +144,7 @@ def main() -> None:
         factor_path=args.factor_table,
         material_profile_path=args.material_profiles,
         use_material_profiles=not args.no_material_profiles,
+        condition_status=args.condition,
     )
     print(json.dumps(summary, indent=2))
 

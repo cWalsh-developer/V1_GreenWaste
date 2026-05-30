@@ -56,11 +56,16 @@ chair.
 ## Recommendation Logic
 
 The LCA output includes all scenario results plus a recommended route. The
-recommendation is selected by the lowest upper-bound CO2e estimate among the
-modelled routes. This deliberately favours the option with the best conservative
-CO2e outcome, but it does not account for operational constraints such as local
-facility availability, contamination, safety, transport distance, or item
-condition. Reuse is treated as a diversion route rather than literal disposal.
+recommendation is condition-aware. Reuse is selected only when the item is
+manually marked as reusable. If the item is marked not reusable, reuse is
+excluded and the recommended route is selected from Recycle, Incineration, and
+Landfill using the lowest upper-bound CO2e estimate. If condition is unknown,
+the output includes both the preferred route if reusable and the recommended
+non-reuse disposal route.
+
+The recommendation does not directly assess condition, contamination, safety,
+local facility availability, transport distance, or operational constraints.
+Reuse is treated as a diversion route rather than literal disposal.
 The user-facing recommended route is restricted to one of four categories:
 Reuse, Landfill, Incineration, or Recycle.
 

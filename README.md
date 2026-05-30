@@ -46,7 +46,8 @@ Run the complete V1 chain on one saved RealSense capture:
 $env:PYTHONPATH = "src"
 python -m greenwaste.v1_demo_pipeline `
   --capture-dir data/raw/realsense/capture_20260527_022745 `
-  --model runs/detect/train-2/weights/best.pt
+  --model runs/detect/train-2/weights/best.pt `
+  --condition unknown
 ```
 
 For a manually labelled ROI, add:
@@ -58,6 +59,10 @@ For a manually labelled ROI, add:
 
 This writes size estimates, reference matches, LCA scenario ranges, and the
 recommended route under `data/interim/`.
+
+Use `--condition reusable` when the collector manually judges the item suitable
+for reuse. Use `--condition not_reusable` when it is visibly damaged,
+contaminated, unsafe, or otherwise unsuitable for reuse.
 
 ## Data sources (local)
 
