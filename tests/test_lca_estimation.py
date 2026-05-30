@@ -35,6 +35,10 @@ def test_build_lca_payload_uses_weight_range_for_each_scenario():
             "material_family": "mixed",
             "weight_low_kg": 5.0,
             "weight_high_kg": 10.0,
+            "weight_reference_count": 2,
+            "weight_imputed_count": 1,
+            "weight_missing_count": 0,
+            "weight_source_note": "test note",
         }
     )
 
@@ -50,6 +54,8 @@ def test_build_lca_payload_uses_weight_range_for_each_scenario():
     assert payload["scenarios"][1]["co2e_low_kg"] == 3.0
     assert payload["scenarios"][1]["co2e_high_kg"] == 14.0
     assert payload["recommendation"]["recommended_scenario"] == "reuse"
+    assert payload["weight_source_summary"]["reference_count"] == 2
+    assert payload["weight_source_summary"]["imputed_count"] == 1
 
 
 def test_build_lca_payload_includes_factor_metadata():

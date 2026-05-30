@@ -68,6 +68,10 @@ Reuse, Landfill, Incineration, or Recycle.
 
 - Material composition is inferred from reference products, not measured.
 - Broad item classes use low/high proxy composition profiles.
+- Weight ranges are derived from matched reference products. Some reference
+  weights are source values, while others are imputed from dimensions/material
+  family or size-bin fallback values. Results include weight source counts so
+  measured/reference weights and imputed weights can be separated.
 - Some material-specific factors are unavailable, so proxies are used for foam,
   unknown material, and missing pathways.
 - The result should be reported as an indicative CO2e range or comparative score.

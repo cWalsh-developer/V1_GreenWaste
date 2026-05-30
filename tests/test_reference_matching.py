@@ -71,6 +71,26 @@ def test_summarize_reference_matches_returns_weight_range_and_material_mode():
     assert summary["size_bin"] == "medium"
     assert summary["weight_range_kg"][0] > 5.0
     assert summary["weight_range_kg"][1] < 20.0
+    assert summary["weight_reference_count"] == 3
+    assert summary["weight_imputed_count"] == 0
+
+
+def test_summarize_reference_matches_counts_imputed_weights():
+    matches = pd.DataFrame(
+        {
+            "record_id": ["a", "b"],
+            "material_family": ["wood", "wood"],
+            "weight_kg_filled": [5.0, 20.0],
+            "weight_imputed": [False, True],
+            "size_bin": ["medium", "large"],
+        }
+    )
+
+    summary = summarize_reference_matches(matches)
+
+    assert summary["weight_reference_count"] == 1
+    assert summary["weight_imputed_count"] == 1
+    assert "imputed weights" in summary["weight_source_note"]
 
 
 def test_infer_composition_profile_selects_office_chair_from_reference_matches():

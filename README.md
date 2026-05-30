@@ -25,7 +25,7 @@ The goal is a practical, field-ready pipeline that works with limited hardware a
 
 - Intel RealSense D415 depth camera (RGB + depth, scale cues)
 - Stereolabs ZED 2i depth camera (higher fidelity depth, wider scene capture)
-- NVIDIA Jetson TX2 (edge inference)
+- NVIDIA Jetson Orin Nano Developer Kit (edge inference)
 - Portable power banks (field testing)
 
 ## Project layout
@@ -37,6 +37,27 @@ The goal is a practical, field-ready pipeline that works with limited hardware a
 - `src/greenwaste/`: reusable Python modules
 - `tests/`: unit tests
 - `docs/`: project notes
+
+## Full V1 saved-capture demo
+
+Run the complete V1 chain on one saved RealSense capture:
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m greenwaste.v1_demo_pipeline `
+  --capture-dir data/raw/realsense/capture_20260527_022745 `
+  --model runs/detect/train-2/weights/best.pt
+```
+
+For a manually labelled ROI, add:
+
+```powershell
+  --label-file labels_realsense_chair_2026-05-28-04-41-30/rgb.txt `
+  --label-item-class chair_seating
+```
+
+This writes size estimates, reference matches, LCA scenario ranges, and the
+recommended route under `data/interim/`.
 
 ## Data sources (local)
 

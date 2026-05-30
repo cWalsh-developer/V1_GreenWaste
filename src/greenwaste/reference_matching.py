@@ -257,9 +257,20 @@ def summarize_reference_matches(
             "material_family": "unknown",
             "weight_range_kg": [None, None],
             "size_bin": "unknown",
+            "weight_reference_count": 0,
+            "weight_imputed_count": 0,
+            "weight_missing_count": 0,
+            "weight_source_note": "No reference matches were available.",
         }
 
     weights = matches["weight_kg_filled"].dropna().astype(float)
+    weight_imputed = matches.get(
+        "weight_imputed",
+        pd.Series(False, index=matches.index),
+    ).fillna(False)
+    weight_reference_count = int((~weight_imputed.astype(bool)).sum())
+    weight_imputed_count = int(weight_imputed.astype(bool).sum())
+    weight_missing_count = int(matches["weight_kg_filled"].isna().sum())
     material_counts = matches.loc[
         matches["material_family"].fillna("unknown") != "unknown",
         "material_family",
@@ -278,6 +289,14 @@ def summarize_reference_matches(
         "material_family": material_family,
         "weight_range_kg": [low_weight, high_weight],
         "size_bin": size_bin,
+        "weight_reference_count": weight_reference_count,
+        "weight_imputed_count": weight_imputed_count,
+        "weight_missing_count": weight_missing_count,
+        "weight_source_note": (
+            "Weight range is derived from matched reference products. "
+            f"{weight_reference_count} match(es) used source/reference weights; "
+            f"{weight_imputed_count} match(es) used imputed weights."
+        ),
         "top_record_ids": matches["record_id"].head(5).astype(str).tolist(),
     }
 
@@ -350,6 +369,16 @@ def run_reference_matching(
             "material_family": payload["reference_summary"]["material_family"],
             "weight_low_kg": payload["reference_summary"]["weight_range_kg"][0],
             "weight_high_kg": payload["reference_summary"]["weight_range_kg"][1],
+            "weight_reference_count": payload["reference_summary"][
+                "weight_reference_count"
+            ],
+            "weight_imputed_count": payload["reference_summary"][
+                "weight_imputed_count"
+            ],
+            "weight_missing_count": payload["reference_summary"][
+                "weight_missing_count"
+            ],
+            "weight_source_note": payload["reference_summary"]["weight_source_note"],
             "reference_size_bin": payload["reference_summary"]["size_bin"],
         }
         for payload in payloads

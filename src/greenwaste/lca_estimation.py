@@ -67,6 +67,15 @@ def build_lca_payload(
 ) -> dict[str, Any]:
     weight_low = match_row.get("weight_low_kg")
     weight_high = match_row.get("weight_high_kg")
+    weight_source_summary = {
+        "reference_count": int(match_row.get("weight_reference_count", 0) or 0),
+        "imputed_count": int(match_row.get("weight_imputed_count", 0) or 0),
+        "missing_count": int(match_row.get("weight_missing_count", 0) or 0),
+        "note": match_row.get(
+            "weight_source_note",
+            "Weight source summary was not provided.",
+        ),
+    }
 
     if pd.isna(weight_low) or pd.isna(weight_high):
         scenarios = []
@@ -186,6 +195,7 @@ def build_lca_payload(
             None if pd.isna(weight_low) else float(weight_low),
             None if pd.isna(weight_high) else float(weight_high),
         ],
+        "weight_source_summary": weight_source_summary,
         "scenarios": scenarios,
         "recommendation": build_scenario_recommendation(scenarios),
     }
@@ -260,6 +270,16 @@ def run_lca_estimation(
                     ],
                     "weight_low_kg": payload["weight_range_kg"][0],
                     "weight_high_kg": payload["weight_range_kg"][1],
+                    "weight_reference_count": payload["weight_source_summary"][
+                        "reference_count"
+                    ],
+                    "weight_imputed_count": payload["weight_source_summary"][
+                        "imputed_count"
+                    ],
+                    "weight_missing_count": payload["weight_source_summary"][
+                        "missing_count"
+                    ],
+                    "weight_source_note": payload["weight_source_summary"]["note"],
                     **scenario,
                 }
             )
