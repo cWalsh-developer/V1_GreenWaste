@@ -32,8 +32,11 @@ class SizeEstimate:
     roi_refined: tuple[int, int, int, int]
 
 
-def load_capture_images(capture_dir: Path) -> tuple[np.ndarray, np.ndarray]:
-    rgb_path = capture_dir / "rgb.png"
+def load_capture_images(
+    capture_dir: Path,
+    rgb_image_name: str = "rgb.png",
+) -> tuple[np.ndarray, np.ndarray]:
+    rgb_path = capture_dir / rgb_image_name
     depth_path = capture_dir / "depth.png"
     if not rgb_path.exists():
         raise FileNotFoundError(f"RGB image not found: {rgb_path}")

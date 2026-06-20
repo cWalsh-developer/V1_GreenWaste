@@ -22,20 +22,73 @@ from .lca import (
 
 SCENARIO_LABELS = {
     "reuse_avoided_production": "Reuse",
+    "reuse": "Reuse",
     "closed_loop_recycling": "Recycle",
+    "recycling": "Recycle",
     "incineration_energy_recovery": "Incineration",
+    "incineration": "Incineration",
     "landfill": "Landfill",
 }
 
 
-REUSE_SCENARIOS = {"reuse_avoided_production"}
+REUSE_SCENARIOS = {"reuse_avoided_production", "reuse"}
 CONDITION_STATUSES = {"reusable", "not_reusable", "unknown"}
+SCENARIO_PRIORITY_RANK = {
+    "reuse_avoided_production": 0,
+    "reuse": 0,
+    "closed_loop_recycling": 1,
+    "recycling": 1,
+    "incineration_energy_recovery": 2,
+    "incineration": 2,
+    "landfill": 3,
+}
+DISPOSAL_DECISION_ADJUSTMENT_KGCO2E_PER_KG = {
+    "closed_loop_recycling": 0.0,
+    "recycling": 0.0,
+    "incineration_energy_recovery": 0.05,
+    "incineration": 0.05,
+    "landfill": 0.1,
+}
+DECISION_SCORE_BASIS = (
+    "Upper-bound CO2e plus a waste-hierarchy adjustment for non-reuse disposal "
+    "routes. The reported CO2e range remains the unadjusted factor result."
+)
+
+
+def _with_decision_fields(
+    scenarios: list[dict[str, Any]],
+    weight_high_kg: float | None,
+) -> list[dict[str, Any]]:
+    if not scenarios or weight_high_kg is None or pd.isna(weight_high_kg):
+        return scenarios
+
+    adjusted_scenarios = []
+    for scenario in scenarios:
+        scenario_name = str(scenario["scenario"])
+        penalty_per_kg = DISPOSAL_DECISION_ADJUSTMENT_KGCO2E_PER_KG.get(
+            scenario_name,
+            0.0,
+        )
+        decision_adjustment = float(weight_high_kg) * penalty_per_kg
+        adjusted = {
+            **scenario,
+            "route_priority_rank": SCENARIO_PRIORITY_RANK.get(scenario_name, 99),
+            "decision_adjustment_kg": decision_adjustment,
+            "decision_score_kg": float(scenario["co2e_high_kg"])
+            + decision_adjustment,
+            "decision_score_basis": DECISION_SCORE_BASIS,
+        }
+        adjusted_scenarios.append(adjusted)
+
+    return adjusted_scenarios
 
 
 def _rank_scenarios(scenarios: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return sorted(
         scenarios,
         key=lambda scenario: (
+            float(scenario.get("decision_score_kg", scenario["co2e_high_kg"])),
+            int(scenario.get("route_priority_rank", 99)),
             float(scenario["co2e_high_kg"]),
             float(scenario["co2e_low_kg"]),
         ),
@@ -105,7 +158,12 @@ def build_scenario_recommendation(
     )
     recommended_if_not_reusable = _recommendation_payload(
         best_disposal,
-        "If the item is not reusable, this is the lowest upper-bound CO2e route among the modelled disposal routes.",
+        (
+            "If the item is not reusable, this is the lowest decision-score "
+            "route among the modelled disposal routes. The decision score uses "
+            "upper-bound CO2e plus a waste-hierarchy adjustment so near-ties do "
+            "not imply equal preference."
+        ),
     )
 
     if condition_status == "reusable" and best_reuse is not None:
@@ -119,8 +177,8 @@ def build_scenario_recommendation(
         selected = recommended_if_not_reusable
         rationale = (
             "The item condition was marked not reusable, so reuse is excluded. "
-            f"{selected['recommended_route']} has the lowest upper-bound CO2e "
-            "estimate among the remaining modelled disposal routes."
+            f"{selected['recommended_route']} has the lowest disposal decision "
+            "score among the remaining modelled routes."
         )
     elif best_disposal is not None:
         selected = recommended_if_not_reusable
@@ -128,7 +186,7 @@ def build_scenario_recommendation(
             "Item condition was not provided. Reuse should be selected only if "
             "a collector manually assesses the item as reusable. Until then, "
             f"{selected['recommended_route']} is reported as the non-reuse "
-            "disposal recommendation."
+            "disposal recommendation using the disposal decision score."
         )
     else:
         selected = preferred_if_reusable
@@ -272,6 +330,11 @@ def build_lca_payload(
             for scenario, intensity in scenario_intensities.items()
             for co2e_low, co2e_high in [scenario_co2e_range(weight_range, intensity)]
         ]
+
+    scenarios = _with_decision_fields(
+        scenarios,
+        None if pd.isna(weight_high) else float(weight_high),
+    )
 
     return {
         "capture_id": match_row.get("capture_id"),

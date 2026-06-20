@@ -53,6 +53,31 @@ def test_build_scenario_recommendation_excludes_reuse_when_not_reusable():
     assert recommendation["preferred_if_reusable"]["recommended_route"] == "Reuse"
 
 
+def test_build_scenario_recommendation_uses_decision_score_for_disposal_near_ties():
+    recommendation = build_scenario_recommendation(
+        [
+            {
+                "scenario": "incineration_energy_recovery",
+                "co2e_low_kg": 0.03,
+                "co2e_high_kg": 0.04,
+                "decision_score_kg": 0.54,
+                "route_priority_rank": 2,
+            },
+            {
+                "scenario": "closed_loop_recycling",
+                "co2e_low_kg": 0.04,
+                "co2e_high_kg": 0.05,
+                "decision_score_kg": 0.05,
+                "route_priority_rank": 1,
+            },
+        ],
+        condition_status="not_reusable",
+    )
+
+    assert recommendation["recommended_scenario"] == "closed_loop_recycling"
+    assert recommendation["recommended_route"] == "Recycle"
+
+
 def test_build_lca_payload_uses_weight_range_for_each_scenario():
     row = pd.Series(
         {
@@ -84,6 +109,44 @@ def test_build_lca_payload_uses_weight_range_for_each_scenario():
     assert payload["recommendation"]["condition_status"] == "reusable"
     assert payload["weight_source_summary"]["reference_count"] == 2
     assert payload["weight_source_summary"]["imputed_count"] == 1
+
+
+def test_build_lca_payload_adds_disposal_decision_score():
+    row = pd.Series(
+        {
+            "capture_id": "capture_001",
+            "item_class": "chair_seating",
+            "material_family": "wood",
+            "weight_low_kg": 8.0,
+            "weight_high_kg": 10.0,
+        }
+    )
+    factors = pd.DataFrame(
+        {
+            "material_family": ["wood", "wood"],
+            "scenario": ["incineration_energy_recovery", "closed_loop_recycling"],
+            "factor_low_kgco2e_per_kg": [0.003, 0.004],
+            "factor_high_kgco2e_per_kg": [0.004, 0.005],
+            "boundary": ["end-of-life waste disposal", "end-of-life waste disposal"],
+            "source_name": ["source", "source"],
+            "source_year": [2025, 2025],
+            "source_url": ["url", "url"],
+            "source_detail": ["Incineration", "Closed-loop"],
+            "assumption_quality": ["low", "high"],
+            "notes": ["test note", "test note"],
+        }
+    )
+
+    payload = build_lca_payload(
+        row,
+        factor_rows=factors,
+        condition_status="not_reusable",
+    )
+    scenarios = {scenario["scenario"]: scenario for scenario in payload["scenarios"]}
+
+    assert scenarios["closed_loop_recycling"]["decision_score_kg"] == 0.05
+    assert scenarios["incineration_energy_recovery"]["decision_score_kg"] == 0.54
+    assert payload["recommendation"]["recommended_scenario"] == "closed_loop_recycling"
 
 
 def test_build_lca_payload_includes_factor_metadata():

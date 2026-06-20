@@ -103,11 +103,12 @@ def estimate_capture_items(
     confidence: float,
     image_size: int,
     max_detections: int,
+    rgb_image_name: str = "rgb.png",
     label_file: Path | None = None,
     label_item_class: str = "manual_roi",
 ) -> list[dict[str, Any]]:
     metadata = load_metadata(capture_dir)
-    rgb, depth = load_capture_images(capture_dir)
+    rgb, depth = load_capture_images(capture_dir, rgb_image_name=rgb_image_name)
     image_height, image_width = rgb.shape[:2]
     intrinsics = parse_intrinsics(metadata)
     depth_scale = float(metadata.get("depth_scale", 0.001))
@@ -134,7 +135,7 @@ def estimate_capture_items(
     else:
         detections = detect_items(
             model_path=model_path,
-            image_path=capture_dir / "rgb.png",
+            image_path=capture_dir / rgb_image_name,
             confidence=confidence,
             image_size=image_size,
         )
@@ -216,6 +217,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--image-size", type=int, default=960)
     parser.add_argument("--max-detections", type=int, default=1)
     parser.add_argument(
+        "--rgb-image-name",
+        type=str,
+        default="rgb.png",
+        help="RGB image filename inside the capture folder.",
+    )
+    parser.add_argument(
         "--label-file",
         type=Path,
         default=None,
@@ -245,6 +252,7 @@ def main() -> None:
         confidence=args.confidence,
         image_size=args.image_size,
         max_detections=args.max_detections,
+        rgb_image_name=args.rgb_image_name,
         label_file=args.label_file,
         label_item_class=args.label_item_class,
     )

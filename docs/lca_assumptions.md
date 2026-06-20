@@ -59,9 +59,12 @@ The LCA output includes all scenario results plus a recommended route. The
 recommendation is condition-aware. Reuse is selected only when the item is
 manually marked as reusable. If the item is marked not reusable, reuse is
 excluded and the recommended route is selected from Recycle, Incineration, and
-Landfill using the lowest upper-bound CO2e estimate. If condition is unknown,
-the output includes both the preferred route if reusable and the recommended
-non-reuse disposal route.
+Landfill using a disposal decision score. The decision score is the upper-bound
+CO2e estimate plus a small waste-hierarchy adjustment for non-reuse disposal
+routes. This keeps the auditable CO2e range unchanged while avoiding misleading
+ties between closed-loop recycling and incineration when the source factors are
+similar. If condition is unknown, the output includes both the preferred route
+if reusable and the recommended non-reuse disposal route.
 
 The recommendation does not directly assess condition, contamination, safety,
 local facility availability, transport distance, or operational constraints.

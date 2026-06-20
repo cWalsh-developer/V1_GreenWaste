@@ -19,6 +19,7 @@ def run_v1_demo_pipeline(
     confidence: float = 0.25,
     image_size: int = 960,
     max_detections: int = 1,
+    rgb_image_name: str = "rgb.png",
     top_n: int = 10,
     label_file: Path | None = None,
     label_item_class: str = "manual_roi",
@@ -39,9 +40,16 @@ def run_v1_demo_pipeline(
         confidence=confidence,
         image_size=image_size,
         max_detections=max_detections,
+        rgb_image_name=rgb_image_name,
         label_file=label_file,
         label_item_class=label_item_class,
     )
+    if not size_rows:
+        raise RuntimeError(
+            "No YOLO detections were found for this capture at "
+            f"confidence={confidence}. Try rerunning with a lower "
+            "--confidence value, or provide --label-file with a manual ROI."
+        )
     write_outputs(size_rows, size_output_dir, capture_id)
     size_csv = size_output_dir / f"{capture_id}_yolo_size.csv"
 
@@ -103,6 +111,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--confidence", type=float, default=0.25)
     parser.add_argument("--image-size", type=int, default=960)
     parser.add_argument("--max-detections", type=int, default=1)
+    parser.add_argument(
+        "--rgb-image-name",
+        type=str,
+        default="rgb.png",
+        help="RGB image filename inside the capture folder.",
+    )
     parser.add_argument("--top-n", type=int, default=10)
     parser.add_argument("--label-file", type=Path, default=None)
     parser.add_argument("--label-item-class", type=str, default="manual_roi")
@@ -138,6 +152,7 @@ def main() -> None:
         confidence=args.confidence,
         image_size=args.image_size,
         max_detections=args.max_detections,
+        rgb_image_name=args.rgb_image_name,
         top_n=args.top_n,
         label_file=args.label_file,
         label_item_class=args.label_item_class,

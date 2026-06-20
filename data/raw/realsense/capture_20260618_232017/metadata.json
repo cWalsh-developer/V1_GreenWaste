@@ -1,6 +1,6 @@
 {
-  "capture_id": "capture_20260527_020922",
-  "timestamp_utc": "2026-05-27T02:09:29.711667+00:00",
+  "capture_id": "capture_20260618_232017",
+  "timestamp_utc": "2026-06-18T23:20:18.992478+00:00",
   "camera_model": "Intel RealSense D435",
   "serial": "405622074914",
   "resolution_rgb": {
@@ -31,5 +31,5 @@
   "notes": null,
   "color_space": "rgb",
   "software_white_balance": false,
-  "swap_rb": true
+  "swap_rb": false
 }

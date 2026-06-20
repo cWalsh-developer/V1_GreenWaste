@@ -31,3 +31,4 @@ runs/
 # Large media/model artifacts
 *.onnx
 *.engine
+data/interim/manual_annotation_candidates_beds_images

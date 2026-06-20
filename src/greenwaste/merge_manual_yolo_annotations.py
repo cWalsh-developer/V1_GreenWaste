@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import random
 import shutil
 from pathlib import Path
@@ -15,6 +16,10 @@ TARGET_CLASSES = [
     "tables_desks",
 ]
 STORAGE_CLASS_ID = TARGET_CLASSES.index("storage")
+
+
+def safe_stem_part(value: str) -> str:
+    return "".join(ch if ch.isalnum() else "_" for ch in value)
 
 
 def write_data_yaml(output_dir: Path) -> None:
@@ -57,12 +62,84 @@ def copy_existing_dataset(source_dir: Path, output_dir: Path) -> int:
     return copied
 
 
-def build_image_index(raw_image_root: Path) -> dict[str, Path]:
+def build_image_index(raw_image_roots: list[Path]) -> dict[str, Path]:
     image_index: dict[str, Path] = {}
-    for extension in IMAGE_EXTENSIONS:
-        for image_path in raw_image_root.rglob(f"*{extension}"):
-            image_index.setdefault(image_path.stem, image_path)
+    for raw_image_root in raw_image_roots:
+        for extension in IMAGE_EXTENSIONS:
+            for image_path in raw_image_root.rglob(f"*{extension}"):
+                image_index.setdefault(image_path.stem, image_path)
     return image_index
+
+
+def remove_duplicate_pseudo_annotations(
+    output_dir: Path,
+    manual_stems: set[str],
+) -> list[dict[str, str]]:
+    removed: list[dict[str, str]] = []
+    safe_manual_stems = {safe_stem_part(stem) for stem in manual_stems}
+
+    for split in ("train", "val"):
+        image_dir = output_dir / "images" / split
+        label_dir = output_dir / "labels" / split
+        for image_path in sorted(image_dir.iterdir()):
+            if not image_path.is_file() or not image_path.name.startswith("pseudo__"):
+                continue
+
+            pseudo_stem = image_path.stem.removeprefix("pseudo__")
+            is_duplicate = any(
+                pseudo_stem == manual_stem
+                or pseudo_stem.endswith(f"__{manual_stem}")
+                for manual_stem in safe_manual_stems
+            )
+            if not is_duplicate:
+                continue
+
+            label_path = label_dir / f"{image_path.stem}.txt"
+            image_path.unlink()
+            if label_path.exists():
+                label_path.unlink()
+            removed.append(
+                {
+                    "split": split,
+                    "removed_pseudo_stem": image_path.stem,
+                }
+            )
+
+    return removed
+
+
+def write_removed_duplicates_csv(
+    output_dir: Path,
+    removed_duplicates: list[dict[str, str]],
+) -> None:
+    path = output_dir / "removed_duplicate_pseudo_images.csv"
+    with path.open("w", newline="", encoding="utf-8") as file:
+        writer = csv.DictWriter(
+            file,
+            fieldnames=["split", "removed_pseudo_stem"],
+        )
+        writer.writeheader()
+        writer.writerows(removed_duplicates)
+
+
+def stratified_splits(
+    label_paths: list[Path],
+    val_fraction: float,
+    rng: random.Random,
+) -> dict[Path, str]:
+    if len(label_paths) < 2:
+        return {label_path: "train" for label_path in label_paths}
+
+    shuffled = label_paths.copy()
+    rng.shuffle(shuffled)
+    val_count = round(len(shuffled) * val_fraction)
+    if val_fraction > 0 and label_paths:
+        val_count = max(1, val_count)
+    val_paths = set(shuffled[:val_count])
+    return {
+        label_path: "val" if label_path in val_paths else "train"
+        for label_path in label_paths
+    }
 
 
 def remap_label_file(source_label_path: Path, target_label_path: Path, class_id: int) -> None:
@@ -80,20 +157,28 @@ def remap_label_file(source_label_path: Path, target_label_path: Path, class_id:
 def merge_manual_annotations(
     pseudo_dir: Path,
     manual_label_groups: list[tuple[str, list[Path]]],
-    raw_image_root: Path,
+    raw_image_roots: list[Path],
     output_dir: Path,
     val_fraction: float,
     seed: int,
-) -> tuple[int, dict[str, int], list[Path], list[str]]:
+) -> tuple[
+    int,
+    dict[str, int],
+    dict[str, dict[str, int]],
+    list[Path],
+    list[str],
+    list[dict[str, str]],
+]:
     for split in ("train", "val"):
         (output_dir / "images" / split).mkdir(parents=True, exist_ok=True)
         (output_dir / "labels" / split).mkdir(parents=True, exist_ok=True)
 
     pseudo_count = copy_existing_dataset(pseudo_dir, output_dir)
-    image_index = build_image_index(raw_image_root)
+    image_index = build_image_index(raw_image_roots)
 
     rng = random.Random(seed)
     copied_manual: dict[str, int] = {}
+    manual_split_counts: dict[str, dict[str, int]] = {}
     missing_images: list[Path] = []
     duplicate_stems: list[str] = []
     seen_manual_stems: set[str] = set()
@@ -104,8 +189,9 @@ def merge_manual_annotations(
         for label_dir in label_dirs:
             manual_label_paths.extend(sorted(label_dir.glob("*.txt")))
 
-        rng.shuffle(manual_label_paths)
         copied_manual.setdefault(class_name, 0)
+        manual_split_counts.setdefault(class_name, {"train": 0, "val": 0})
+        split_by_label = stratified_splits(manual_label_paths, val_fraction, rng)
 
         for label_path in manual_label_paths:
             if label_path.stem in seen_manual_stems:
@@ -118,7 +204,7 @@ def merge_manual_annotations(
                 missing_images.append(label_path)
                 continue
 
-            split = "val" if rng.random() < val_fraction else "train"
+            split = split_by_label[label_path]
             output_stem = f"manual_{class_name}__{label_path.stem}"
             target_image_path = (
                 output_dir / "images" / split / f"{output_stem}{source_image_path.suffix.lower()}"
@@ -128,19 +214,44 @@ def merge_manual_annotations(
             shutil.copy2(source_image_path, target_image_path)
             remap_label_file(label_path, target_label_path, class_id=class_id)
             copied_manual[class_name] += 1
+            manual_split_counts[class_name][split] += 1
 
+    removed_duplicates = remove_duplicate_pseudo_annotations(
+        output_dir=output_dir,
+        manual_stems=seen_manual_stems,
+    )
+    write_removed_duplicates_csv(output_dir, removed_duplicates)
     write_data_yaml(output_dir)
-    return pseudo_count, copied_manual, missing_images, duplicate_stems
+    return (
+        pseudo_count,
+        copied_manual,
+        manual_split_counts,
+        missing_images,
+        duplicate_stems,
+        removed_duplicates,
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Merge manual storage YOLO annotations with the pseudo YOLO dataset"
+        description="Merge manual YOLO annotations with the pseudo YOLO dataset"
     )
     parser.add_argument(
         "--pseudo-dir",
         type=Path,
         default=Path("data/processed/yolo_pseudo"),
+    )
+    parser.add_argument(
+        "--manual-beds-label-dir",
+        type=Path,
+        action="append",
+        default=[],
+    )
+    parser.add_argument(
+        "--manual-chair-label-dir",
+        type=Path,
+        action="append",
+        default=[],
     )
     parser.add_argument(
         "--manual-storage-label-dir",
@@ -157,7 +268,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--raw-image-root",
         type=Path,
-        default=Path("data/raw/realsense/labelled"),
+        action="append",
+        default=[],
+        help=(
+            "Image root used to match manual label stems. Can be supplied more "
+            "than once."
+        ),
     )
     parser.add_argument(
         "--output-dir",
@@ -174,6 +290,8 @@ def main() -> None:
     args = parser.parse_args()
 
     manual_label_groups = [
+        ("beds_mattresses", args.manual_beds_label_dir),
+        ("chair_seating", args.manual_chair_label_dir),
         ("storage", args.manual_storage_label_dir),
         ("tables_desks", args.manual_tables_label_dir),
     ]
@@ -185,10 +303,19 @@ def main() -> None:
     if not manual_label_groups:
         parser.error("At least one manual label directory must be supplied.")
 
-    pseudo_count, manual_counts, missing_images, duplicate_stems = merge_manual_annotations(
+    raw_image_roots = args.raw_image_root or [Path("data/raw/realsense/labelled")]
+
+    (
+        pseudo_count,
+        manual_counts,
+        manual_split_counts,
+        missing_images,
+        duplicate_stems,
+        removed_duplicates,
+    ) = merge_manual_annotations(
         pseudo_dir=args.pseudo_dir,
         manual_label_groups=manual_label_groups,
-        raw_image_root=args.raw_image_root,
+        raw_image_roots=raw_image_roots,
         output_dir=args.output_dir,
         val_fraction=args.val_fraction,
         seed=args.seed,
@@ -197,6 +324,12 @@ def main() -> None:
     print(f"Copied pseudo-labelled images: {pseudo_count}")
     for class_name, count in manual_counts.items():
         print(f"Copied manual {class_name} images: {count}")
+        split_counts = manual_split_counts[class_name]
+        print(
+            f"  manual split: train={split_counts['train']}, "
+            f"val={split_counts['val']}"
+        )
+    print(f"Removed duplicate pseudo-labelled images: {len(removed_duplicates)}")
     print(f"Skipped duplicate manual stems: {len(duplicate_stems)}")
     if duplicate_stems:
         for stem in duplicate_stems[:20]:
