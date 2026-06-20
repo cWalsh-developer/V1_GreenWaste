@@ -143,6 +143,34 @@ Summarise the cross-validation metrics:
 The summary reports mean and standard deviation across folds for precision,
 recall, mAP50, and mAP50-95.
 
+## Final all-labelled YOLO model
+
+After cross-validation has been used for evaluation, train one final deployment
+model using all labelled images:
+
+```powershell
+$env:PYTHONPATH = "src"
+.\myenv\Scripts\python.exe -m greenwaste.make_yolo_final_dataset `
+  --source-dir data\processed\yolo_combined_stratified_20260616 `
+  --output-dir data\processed\yolo_combined_all_labelled_20260620
+```
+
+Train the final detector:
+
+```powershell
+.\myenv\Scripts\yolo.exe detect train `
+  model=yolo26n.pt `
+  data=data\processed\yolo_combined_all_labelled_20260620\data.yaml `
+  imgsz=960 `
+  epochs=80 `
+  batch=8 `
+  name=train_final_all_labelled_20260620
+```
+
+The validation numbers from this final run are only training sanity checks,
+because the same labelled images are used for training. Report the 5-fold
+cross-validation metrics as the unbiased internal evaluation.
+
 ## Data sources (local)
 
 Holds csv reference data for comparison of an IKEA dataset
