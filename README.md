@@ -64,6 +64,35 @@ Use `--condition reusable` when the collector manually judges the item suitable
 for reuse. Use `--condition not_reusable` when it is visibly damaged,
 contaminated, unsafe, or otherwise unsuitable for reuse.
 
+## Live RealSense demo
+
+Run the detector directly on a live Intel RealSense feed and display the
+detected item, approximate size, reference weight range, recommended route, and
+CO2e range on screen:
+
+```powershell
+$env:PYTHONPATH = "src"
+.\myenv\Scripts\python.exe -m greenwaste.live_realsense_demo `
+  --model "runs\detect\train_final_all_labelled_augmented_70ep_20260620\weights\best.pt" `
+  --confidence 0.25 `
+  --image-size 960 `
+  --condition unknown `
+  --color-format bgr
+```
+
+The live window supports:
+
+- `q` or `Esc`: quit
+- `s`: save the current annotated screen and route JSON to `data/interim/live_realsense_demo`
+- `u`: set item condition to unknown
+- `r`: set item condition to reusable
+- `n`: set item condition to not reusable
+
+The route recommendation is refreshed once per second by default. Increase
+`--route-update-seconds` if the display feels sluggish, or lower it if you want
+route outputs to update more frequently. The displayed CO2e values are
+indicative decision-support ranges, not product-specific carbon accounting.
+
 ## Domain augmentation experiment
 
 The stratified YOLO dataset can be copied into an augmented training dataset
@@ -174,3 +203,34 @@ cross-validation metrics as the unbiased internal evaluation.
 ## Data sources (local)
 
 Holds csv reference data for comparison of an IKEA dataset
+
+## Label Studio local files
+
+Start Label Studio with local-file serving enabled and restricted to `data/raw`:
+
+```powershell
+.\scripts\start-label-studio.ps1
+```
+
+In **Settings > Cloud Storage > Add Source Storage > Local files**, configure:
+
+- **Absolute local path**:
+  `D:\Green Waste\V1_GreenWaste\data\raw\realsense_for_annotation_grouped_20260807`
+- **Import method**: `Tasks`
+- **Scan all sub-folders** (recursive scan): enabled
+- **File filter regex**: `.*\.(jpg|jpeg|png)$`
+
+The `Tasks` import method is required for images. The alternative import method
+expects task definitions in JSON, JSONL, or Parquet format and will reject JPG
+files. Recursive scanning is required because the images are inside category
+subdirectories.
+
+The resulting image task values use local-file URLs relative to the configured
+document root, for example:
+
+```text
+/data/local-files/?d=realsense_for_annotation_grouped_20260807/beds_mattresses/example.jpg
+```
+
+The launcher sets `LOCAL_FILES_SERVING_ENABLED=true` only for the Label Studio
+process and sets `LOCAL_FILES_DOCUMENT_ROOT` to the resolved `data/raw` path.

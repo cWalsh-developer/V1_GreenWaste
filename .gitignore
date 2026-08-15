@@ -32,3 +32,6 @@ runs/
 *.onnx
 *.engine
 data/interim/manual_annotation_candidates_beds_images
+
+/data
+/docs/results_assets
