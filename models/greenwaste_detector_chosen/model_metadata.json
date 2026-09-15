@@ -1,0 +1,28 @@
+{
+  "artifact_name": "greenwaste_detector_chosen",
+  "weights_file": "best.pt",
+  "sha256": "4DB18BD1429C7FC1819A3C6436C21E513E420505997BC5430C71C00A0A1C0A4B",
+  "file_size_bytes": 5549829,
+  "source_training_run": "runs/detect/train_final_all_labelled_augmented_70ep_20260620",
+  "source_weights": "runs/detect/train_final_all_labelled_augmented_70ep_20260620/weights/best.pt",
+  "base_model": "yolo26n.pt",
+  "task": "detect",
+  "image_size": 1280,
+  "epochs": 70,
+  "dataset": "data/processed/yolo_combined_all_labelled_augmented_20260620/data.yaml",
+  "classes": [
+    "beds_mattresses",
+    "chair_seating",
+    "sofa",
+    "storage",
+    "tables_desks"
+  ],
+  "source_run_best_metrics": {
+    "precision": 0.98865,
+    "recall": 0.99017,
+    "mAP50": 0.99284,
+    "mAP50_95": 0.94945
+  },
+  "evaluation_note": "The source run metrics are final fitting/training diagnostics because the final model used all labelled augmented data. The defensible internal evaluation reported in the dissertation is the original stratified five-fold cross-validation result: precision 0.908, recall 0.868, mAP50 0.943, mAP50-95 0.839.",
+  "published_on": "2026-09-15"
+}

@@ -46,7 +46,7 @@ Run the complete V1 chain on one saved RealSense capture:
 $env:PYTHONPATH = "src"
 python -m greenwaste.v1_demo_pipeline `
   --capture-dir data/raw/realsense/capture_20260527_022745 `
-  --model runs/detect/train-2/weights/best.pt `
+  --model models/greenwaste_detector_chosen/best.pt `
   --condition unknown
 ```
 
@@ -73,7 +73,7 @@ CO2e range on screen:
 ```powershell
 $env:PYTHONPATH = "src"
 .\myenv\Scripts\python.exe -m greenwaste.live_realsense_demo `
-  --model "runs\detect\train_final_all_labelled_augmented_70ep_20260620\weights\best.pt" `
+  --model "models\greenwaste_detector_chosen\best.pt" `
   --confidence 0.25 `
   --image-size 960 `
   --condition unknown `
@@ -92,6 +92,149 @@ The route recommendation is refreshed once per second by default. Increase
 `--route-update-seconds` if the display feels sluggish, or lower it if you want
 route outputs to update more frequently. The displayed CO2e values are
 indicative decision-support ranges, not product-specific carbon accounting.
+
+## One-vs-rest specialist detector experiment
+
+Create five single-class specialist datasets from the current labelled
+train/validation/test split. Each specialist keeps positive boxes for one class
+and uses the other images as empty-label negative examples:
+
+```powershell
+$env:PYTHONPATH = "src"
+.\myenv\Scripts\python.exe -m greenwaste.make_yolo_one_vs_rest_datasets `
+  --source-dir data\processed\yolo_ikea_curated_stratified_20260716 `
+  --output-dir data\processed\yolo_ikea_curated_one_vs_rest_20260820 `
+  --overwrite
+```
+
+Train the five specialists:
+
+```powershell
+.\scripts\train_one_vs_rest_specialists.ps1
+```
+
+Or run the loop manually:
+
+```powershell
+$classes = @(
+  "beds_mattresses",
+  "chair_seating",
+  "sofa",
+  "storage",
+  "tables_desks"
+)
+
+foreach ($class in $classes) {
+  .\myenv\Scripts\yolo.exe detect train `
+    model=yolo11n.pt `
+    data="data\processed\yolo_ikea_curated_one_vs_rest_20260820\$class\data.yaml" `
+    epochs=70 `
+    imgsz=960 `
+    batch=8 `
+    project=runs\detect `
+    name="one_vs_rest_${class}_20260820"
+}
+```
+
+Run the specialist ensemble on one saved RealSense capture:
+
+```powershell
+$env:PYTHONPATH = "src"
+.\myenv\Scripts\python.exe -m greenwaste.one_vs_rest_ensemble `
+  --capture-dir data\raw\realsense\capture_20260618_222719 `
+  --rgb-image-name rgb_bgr.png `
+  --model beds_mattresses=runs\detect\one_vs_rest_beds_mattresses_20260820\weights\best.pt `
+  --model chair_seating=runs\detect\one_vs_rest_chair_seating_20260820\weights\best.pt `
+  --model sofa=runs\detect\one_vs_rest_sofa_20260820\weights\best.pt `
+  --model storage=runs\detect\one_vs_rest_storage_20260820\weights\best.pt `
+  --model tables_desks=runs\detect\one_vs_rest_tables_desks_reviewed91_20260829\weights\best.pt `
+  --confidence 0.25 `
+  --threshold tables_desks=0.428 `
+  --image-size 960 `
+  --save-image `
+  --condition unknown
+```
+
+Use class-specific thresholds if one specialist is over-confident or
+under-confident:
+
+```powershell
+  --threshold sofa=0.45 `
+  --threshold chair_seating=0.20 `
+  --threshold storage=0.30
+```
+
+The tables/desks threshold of `0.428` was calibrated on the expanded held-out
+evaluation set. The corresponding `0.673` threshold is reserved for accepting
+automatic pseudo-labels and is intentionally stricter than the live inference
+threshold.
+
+This does not merge the `.pt` files. It runs all five specialist models,
+combines their detections with non-maximum suppression, selects the strongest
+remaining prediction, and then passes that prediction into the size/reference
+matching/CO2e route pipeline when a saved RealSense capture is provided.
+
+## Confidence-filtered pseudo labels
+
+The remaining grouped product images can be pseudo-labelled conservatively with
+the five original cross-validation models. Images are written to the training
+split only when at least three teachers agree with the expected broad folder
+class, exceed the confidence and top-two margin thresholds, and produce
+overlapping, plausible boxes. All rejected or ambiguous images remain in the
+audit manifest for manual review.
+
+Start with a small pilot:
+
+```powershell
+$env:PYTHONPATH = "src"
+.\myenv\Scripts\python.exe -m greenwaste.confidence_filtered_pseudo_labels `
+  --input-dir data\raw\realsense_for_annotation_grouped_20260807 `
+  --output-dir data\processed\yolo_pseudo_consensus_pilot_20260828 `
+  --teacher runs\detect\cv_stratified_fold1\weights\best.pt `
+  --teacher runs\detect\cv_stratified_fold2\weights\best.pt `
+  --teacher runs\detect\cv_stratified_fold3\weights\best.pt `
+  --teacher runs\detect\cv_stratified_fold4\weights\best.pt `
+  --teacher runs\detect\cv_stratified_fold5\weights\best.pt `
+  --min-confidence 0.80 `
+  --class-threshold sofa=0.70 `
+  --min-margin 0.20 `
+  --min-agreement 3 `
+  --min-box-iou 0.50 `
+  --limit-per-class 10 `
+  --sample-seed 42
+```
+
+Use `--include-class sofa` or `--include-class tables_desks` for a targeted
+pilot. The current sofa review uses `0.70`: lowering it to `0.65` added only
+one image in a 40-image comparison, so `0.70` retains the more defensible
+filter with little loss of usable data. A `--max-area-ratio 0.99` setting is
+appropriate for the tightly cropped product photographs in this source pool.
+
+After manually checking the pilot manifest and boxes, rerun with a new output
+directory and omit `--limit-per-class` to process the complete pool. The output includes:
+
+- `images/train` and `labels/train`: accepted pseudo-labelled training data;
+- `pseudo_label_manifest.csv`: every acceptance/rejection and all teacher votes;
+- `pseudo_label_summary.json`: totals by class and rejection reason; and
+- `data.yaml`: a training-only dataset definition.
+
+Do not use pseudo-labelled images as validation or test data. Combine the
+accepted training data with the manually labelled training split, while keeping
+the existing manual validation/test sets untouched for evaluation.
+
+For manual tables/desks review, create Label Studio imports in batches of 50:
+
+```powershell
+.\myenv\Scripts\python.exe tools\make_label_studio_review_batches.py `
+  --input-dir data\raw\realsense_for_annotation_grouped_20260807\tables_desks `
+  --output-dir data\review\label_studio_tables_desks_20260828 `
+  --batch-size 50
+```
+
+Start Label Studio with `scripts\start-label-studio.ps1`, create or open the
+tables/desks project, then use **Import** to load one `batch_XX.json` file at a
+time. The `review_number` field gives a continuous 1–507 progress marker. Keep
+completed batches in the project and only import the next batch when ready.
 
 ## Domain augmentation experiment
 
