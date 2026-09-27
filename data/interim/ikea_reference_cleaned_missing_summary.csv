@@ -1,0 +1,8 @@
+field,missing_count,missing_pct
+missing_materials,110,5.128205128205128
+missing_weight,105,4.895104895104895
+missing_dimensions,1,0.046620046620046623
+unknown_material_family,114,5.314685314685315
+unknown_item_label,0,0.0
+imputed_weight,105,4.895104895104895
+missing_weight_after_impute,0,0.0

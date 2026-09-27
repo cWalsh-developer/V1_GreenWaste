@@ -1,0 +1,5 @@
+weight_bin,min_kg,max_kg
+light,0,5
+medium,5,15
+heavy,15,40
+very_heavy,40,

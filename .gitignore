@@ -38,6 +38,21 @@ runs/
 data/interim/manual_annotation_candidates_beds_images
 
 /data
+# Keep the runtime reference data and its mapping tables available in fresh clones.
+!/data/
+/data/*
+!/data/interim/
+/data/interim/*
+!/data/interim/ikea_reference_cleaned.csv
+!/data/interim/ikea_reference_cleaned_missing_summary.csv
+!/data/interim/mappings/
+/data/interim/mappings/*
+!/data/interim/mappings/item_label_map.csv
+!/data/interim/mappings/lca_scenario_factors.csv
+!/data/interim/mappings/material_composition_profiles.csv
+!/data/interim/mappings/material_family_map.csv
+!/data/interim/mappings/size_bins.csv
+!/data/interim/mappings/weight_bins.csv
 /docs/results_assets
 /../.txt
 /../.docx
